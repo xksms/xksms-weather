@@ -1,42 +1,13 @@
-:root {
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  line-height: 1.6;
-  font-weight: 500;
-  color: #1f2937;
-  background-color: #f6f7fb;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  color: inherit;
-}
-
-a:hover {
-  color: inherit;
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background: radial-gradient(circle at 20% 20%, #fdf2f8, rgba(255, 255, 255, 0)),
-    radial-gradient(circle at 80% 0%, #e0f2fe, rgba(255, 255, 255, 0)),
-    #f6f7fb;
+  overflow: hidden; /* 地图页不需要 body 滚动 */
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-* {
-  box-sizing: border-box;
-}
