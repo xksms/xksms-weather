@@ -1,0 +1,30 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cloud -->
+  <path
+    d="M20 38
+       C14 38 10 34 10 29
+       C10 25 13 22 17 22
+       C18 16 23 12 29 12
+       C35 12 40 16 41 22
+       C45 22 48 25 48 29
+       C48 34 44 38 38 38
+       Z"
+    fill="#F2F4F7"
+  />
+
+  <!-- Face -->
+  <circle cx="26" cy="28" r="1.5" fill="#5B6770"/>
+  <circle cx="34" cy="28" r="1.5" fill="#5B6770"/>
+  <path d="M26 31 Q30 34 34 31" stroke="#5B6770" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Snowflakes (simple + bold for small size) -->
+  <g stroke="#8FC7FF" stroke-width="2" stroke-linecap="round">
+    <path d="M22 45 h6"/>
+    <path d="M25 42 v6"/>
+    <path d="M37 45 h6"/>
+    <path d="M40 42 v6"/>
+  </g>
+
+  <!-- Tiny dots to feel softer -->
+  <circle cx="32" cy="48" r="1.6" fill="#8FC7FF"/>
+</svg>
