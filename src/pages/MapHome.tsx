@@ -87,23 +87,23 @@ function MapHome() {
         return `<div style="padding:5px;font-size:13px"><strong>${name}</strong><br/>${weathers[Math.floor(Math.random() * weathers.length)]}</div>`
     }
 
-    /** --- 核心更新逻辑：根据缩放级别按需加载区县数据 --- **/
+    /** --- 核心修正：使用专门的查询层获取 adcode --- **/
     async function updateDetailLevel(map: maplibregl.Map) {
         const zoom = map.getZoom();
         const center = map.getCenter();
-
-        // 探测当前视觉中心最上层的要素
         const point = map.project(center);
+
+        // 【修改点】：只查询专用的隐形城市层，它没有 maxzoom 限制，任何级别都能查到 adcode
         const features = map.queryRenderedFeatures(point, {
-            layers: ['province-fill', 'city-fill']
+            layers: ['city-query-layer']
         });
 
         if (!features || features.length === 0) return;
         const topFeature = features[0];
         const {adcode, name} = topFeature.properties as AdminProps;
 
-        // 仅在缩放级别足够大 (>9) 时动态加载区县数据
-        if (zoom > 9 && !loadedDataCache.current.has(`${adcode}_district`)) {
+        // 当缩放大于 8.5 级时，尝试加载该市的区县
+        if (zoom > 8.5 && !loadedDataCache.current.has(`${adcode}_district`)) {
             try {
                 const res = await fetch(`https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`);
                 const data = (await res.json()) as { features: RawFeature[] };
@@ -118,14 +118,18 @@ function MapHome() {
                 };
 
                 const source = map.getSource('districts') as GeoJSONSource;
-                if (source) source.setData(processed);
-                loadedDataCache.current.add(`${adcode}_district`);
-                console.log(`已按需加载 ${name} 的区县边界`);
+                if (source) {
+                    // 补充逻辑：这里我们不再是“替换”全图，而是“更新”当前市的区县
+                    source.setData(processed);
+                    loadedDataCache.current.add(`${adcode}_district`);
+                    console.log(`成功加载 ${name} (${adcode}) 的区县数据`);
+                }
             } catch (e: unknown) {
                 console.warn(`${name} 可能没有下级区县数据`, e instanceof Error ? e.message : '未知错误');
             }
         }
     }
+
 
     useEffect(() => {
         if (!containerRef.current || mapRef.current) return
@@ -166,7 +170,7 @@ function MapHome() {
 
             // 市级填充：Zoom 6-9 显示
             map.addLayer({
-                id: 'city-fill', type: 'fill', source: 'cities', minzoom: 6, maxzoom: 9,
+                id: 'city-fill', type: 'fill', source: 'cities', minzoom: 6, maxzoom: 11,
                 paint: {'fill-color': '#6366f1', 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.15, 0.0]}
             })
 
@@ -179,19 +183,29 @@ function MapHome() {
             // 边界线绘制
             map.addLayer({id: 'china-line', type: 'line', source: 'china-outline', paint: {'line-color': '#475569', 'line-width': 2}})
             map.addLayer({id: 'province-line', type: 'line', source: 'provinces', maxzoom: 8, paint: {'line-color': '#94A3B8', 'line-width': 0.8, 'line-dasharray': [2, 1]}})
+
+
             // 1. 市级边界线（只有缩放级别在 6 到 9 之间才显示）
             map.addLayer({
                 id: 'city-line',
                 type: 'line',
                 source: 'cities',
                 minzoom: 6,
-                maxzoom: 9,
+                maxzoom: 11,
                 paint: {
                     'line-color': '#cbd5e1', // 浅灰色边框
                     'line-width': 0.6,       // 比省界稍微细一点
                     'line-opacity': 0.8
                 }
             });
+
+            // 【核心修正】：新增一个隐形查询层，专门用来拿 adcode
+            map.addLayer({
+                id: 'city-query-layer',
+                type: 'fill',
+                source: 'cities',
+                paint: {'fill-opacity': 0} // 完全透明，不影响视觉
+            })
 
             // 2. 区县级边界线（只有缩放级别 > 9 才显示）
             map.addLayer({
