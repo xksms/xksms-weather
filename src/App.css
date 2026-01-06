@@ -162,6 +162,10 @@
 }
 
 @media (max-width: 600px) {
+   body.map-mode #root {
+    padding: 0 !important;
+  }
+
   #root {
     padding: 24px 12px 36px;
   }
@@ -178,4 +182,8 @@
   .pill {
     margin-bottom: 4px;
   }
+}
+
+body.map-mode #root {
+  padding: 0 !important;
 }
