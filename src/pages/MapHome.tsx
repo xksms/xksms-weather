@@ -105,7 +105,12 @@ function MapHome() {
         // 当缩放大于 8.5 级时，尝试加载该市的区县
         if (zoom > 8.5 && !loadedDataCache.current.has(`${adcode}_district`)) {
             try {
-                const res = await fetch(`https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`);
+                // const res = await fetch(`https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`);
+                // 【修改点】：将请求地址指向你的后端接口
+                // 假设后端运行在同一域名下，或者你配置了开发代理
+                const res = await fetch(`/api/geo/${adcode}`);
+                if (!res.ok) throw new Error('后端返回异常');
+
                 const data = (await res.json()) as { features: RawFeature[] };
 
                 const processed = {
@@ -207,12 +212,12 @@ function MapHome() {
                 paint: {'fill-opacity': 0} // 完全透明，不影响视觉
             })
 
-            // 2. 区县级边界线（只有缩放级别 > 9 才显示）
+            // 2. 区县级边界线（只有缩放级别 > 8 才显示）
             map.addLayer({
                 id: 'district-line',
                 type: 'line',
                 source: 'districts',
-                minzoom: 9,
+                minzoom: 8,
                 paint: {
                     'line-color': '#94a3b8', // 稍深一点的灰色
                     'line-width': 0.4,       // 最细的边框
