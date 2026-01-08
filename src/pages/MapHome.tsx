@@ -77,6 +77,8 @@ function MapHome() {
 
     // 缓存已加载的区县数据，防止重复请求
     const loadedDataCache = useRef<Set<string>>(new Set());
+    // 【新增】：存储所有已加载的区县要素，用于合并渲染
+    const allDistrictsFeatures = useRef<AdminFeature[]>([]);
 
     // 记忆化初始空数据
     const emptyFC: AdminFC = useMemo(() => ({type: 'FeatureCollection' as const, features: []}), [])
@@ -87,54 +89,136 @@ function MapHome() {
         return `<div style="padding:5px;font-size:13px"><strong>${name}</strong><br/>${weathers[Math.floor(Math.random() * weathers.length)]}</div>`
     }
 
-    /** --- 核心修正：使用专门的查询层获取 adcode --- **/
+    // /** --- 核心修正：使用专门的查询层获取 adcode --- **/
+    // async function updateDetailLevel(map: maplibregl.Map) {
+    //     const zoom = map.getZoom();
+    //     const center = map.getCenter();
+    //     const point = map.project(center);
+    //
+    //     if (zoom <= 7.9) return; // 缩放级别不够时不触发
+    //
+    //     // 【修改点】：只查询专用的隐形城市层，它没有 maxzoom 限制，任何级别都能查到 adcode
+    //     const features = map.queryRenderedFeatures(point, {
+    //         layers: ['city-query-layer']
+    //     });
+    //
+    //     if (!features || features.length === 0) return;
+    //     const topFeature = features[0];
+    //     const {adcode, name} = topFeature.properties as AdminProps;
+    //
+    //     // 当缩放大于 8.5 级时，尝试加载该市的区县
+    //     if (zoom > 8 && !loadedDataCache.current.has(`${adcode}_district`)) {
+    //         try {
+    //             // const res = await fetch(`https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`);
+    //             // 【修改点】：将请求地址指向你的后端接口
+    //             // 假设后端运行在同一域名下，或者你配置了开发代理
+    //             const res = await fetch(`/api/geo/${adcode}`);
+    //             if (!res.ok) throw new Error('后端返回异常');
+    //
+    //             const data = (await res.json()) as { features: RawFeature[] };
+    //
+    //             const processed = {
+    //                 type: 'FeatureCollection' as const,
+    //                 features: data.features.map((f: RawFeature, i: number) => ({
+    //                     ...f,
+    //                     type: 'Feature' as const,
+    //                     id: i
+    //                 }))
+    //             };
+    //
+    //             const source = map.getSource('districts') as GeoJSONSource;
+    //             if (source) {
+    //                 // 补充逻辑：这里我们不再是“替换”全图，而是“更新”当前市的区县
+    //                 source.setData(processed);
+    //                 loadedDataCache.current.add(`${adcode}_district`);
+    //                 console.log(`成功加载 ${name} (${adcode}) 的区县数据`);
+    //             }
+    //         } catch (e: unknown) {
+    //             console.warn(`${name} 可能没有下级区县数据`, e instanceof Error ? e.message : '未知错误');
+    //         }
+    //     }
+    // }
+
+    // --- 修改点 2: 完全替换原有的 updateDetailLevel 函数 ---
     async function updateDetailLevel(map: maplibregl.Map) {
         const zoom = map.getZoom();
-        const center = map.getCenter();
-        const point = map.project(center);
+        // 只有在足够放大的情况下才抓取区县（建议 8.0 以上）
+        if (zoom <= 8.0) return;
 
-        // 【修改点】：只查询专用的隐形城市层，它没有 maxzoom 限制，任何级别都能查到 adcode
-        const features = map.queryRenderedFeatures(point, {
+        // 【核心改动】：查询当前屏幕视野内所有在 'city-query-layer' 层可见的城市要素
+        // 不再传点坐标 point，这样会返回屏幕内显示的所有城市
+        const visibleCities = map.queryRenderedFeatures({
             layers: ['city-query-layer']
         });
 
-        if (!features || features.length === 0) return;
-        const topFeature = features[0];
-        const {adcode, name} = topFeature.properties as AdminProps;
+        if (!visibleCities || visibleCities.length === 0) return;
 
-        // 当缩放大于 8.5 级时，尝试加载该市的区县
-        if (zoom > 8.5 && !loadedDataCache.current.has(`${adcode}_district`)) {
-            try {
-                // const res = await fetch(`https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`);
-                // 【修改点】：将请求地址指向你的后端接口
-                // 假设后端运行在同一域名下，或者你配置了开发代理
-                const res = await fetch(`/api/geo/${adcode}`);
-                if (!res.ok) throw new Error('后端返回异常');
+        // 提取视野内所有的 adcode 并去重
+        const adcodesInView = Array.from(new Set(
+            visibleCities.map(f => (f.properties as AdminProps).adcode)
+        ));
 
-                const data = (await res.json()) as { features: RawFeature[] };
+        // 过滤掉已经加载过的 adcode
+        const adcodesToLoad = adcodesInView.filter(
+            adcode => !loadedDataCache.current.has(`${adcode}_district`)
+        );
 
-                const processed = {
-                    type: 'FeatureCollection' as const,
-                    features: data.features.map((f: RawFeature, i: number) => ({
-                        ...f,
-                        type: 'Feature' as const,
-                        id: i
-                    }))
-                };
-
-                const source = map.getSource('districts') as GeoJSONSource;
-                if (source) {
-                    // 补充逻辑：这里我们不再是“替换”全图，而是“更新”当前市的区县
-                    source.setData(processed);
-                    loadedDataCache.current.add(`${adcode}_district`);
-                    console.log(`成功加载 ${name} (${adcode}) 的区县数据`);
-                }
-            } catch (e: unknown) {
-                console.warn(`${name} 可能没有下级区县数据`, e instanceof Error ? e.message : '未知错误');
-            }
-        }
+        // 对每一个需要加载的城市发起请求
+        adcodesToLoad.forEach(adcode => {
+            const cityName = visibleCities.find(f => f.properties.adcode === adcode)?.properties.name || adcode;
+            fetchAndMergeDistrict(map, adcode, cityName);
+        });
     }
 
+    // --- 修改点 3: 在 updateDetailLevel 下方新增此函数 ---
+    async function fetchAndMergeDistrict(map: maplibregl.Map, adcode: string, name: string) {
+
+        // 【关键修改 1】：立即锁定，防止后续 moveend 事件重复触发请求
+        if (loadedDataCache.current.has(`${adcode}_district`)) return;
+        loadedDataCache.current.add(`${adcode}_district`);
+
+        try {
+            const res = await fetch(`/api/geo/${adcode}`);
+            if (!res.ok) throw new Error('后端返回异常');
+
+            const data = (await res.json()) as { features: RawFeature[] };
+
+            // --- 修改 fetchAndMergeDistrict 函数中的映射部分 ---
+            const newFeatures: AdminFeature[] = data.features.map((f: RawFeature, i: number) => {
+                // 生成一个全局唯一的 ID
+                const featureId = Number(adcode) * 100 + i;
+
+                return {
+                    ...f,
+                    type: 'Feature' as const,
+                    id: featureId, // 地图要素本身的 id
+                    properties: {
+                        name: f.properties.name,
+                        adcode: String(f.properties.adcode), // 强制转为 string 以符合 AdminProps
+                        level: 'district' as DistrictLevel,  // 显式指定级别为 district
+                        id: featureId                        // 属性中的 id，用于业务逻辑
+                    }
+                };
+            });
+
+            // 【核心】：将新数据追加到 Ref 中，而不是替换
+            allDistrictsFeatures.current = [...allDistrictsFeatures.current, ...newFeatures];
+
+            const source = map.getSource('districts') as GeoJSONSource;
+            if (source) {
+                // 更新数据源为合并后的全量要素集
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: allDistrictsFeatures.current
+                });
+                console.log(`[预加载] 成功合并 ${name} (${adcode}) 的区县数据`);
+            }
+        } catch (e: unknown) {
+            console.warn(`${name} 预加载失败`, e instanceof Error ? e.message : '未知错误');
+            // 如果请求失败，允许下次移动后再次尝试
+            loadedDataCache.current.delete(`${adcode}_district`);
+        }
+    }
 
     useEffect(() => {
         if (!containerRef.current || mapRef.current) return
